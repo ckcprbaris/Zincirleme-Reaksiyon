@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Zincirleme Reaksiyon - Chain Reaction Game</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #070913;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        /* Neon Glow Effects */
+        .neon-text-cyan {
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.7), 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+        .neon-text-pink {
+            text-shadow: 0 0 10px rgba(236, 72, 153, 0.7), 0 0 20px rgba(236, 72, 153, 0.4);
+        }
+        .neon-box-cyan {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.3), inset 0 0 15px rgba(6, 182, 212, 0.2);
+        }
+        .neon-box-pink {
+            box-shadow: 0 0 20px rgba(236, 72, 153, 0.4);
+        }
+
+        /* Glassmorphism Styling */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        /* Button Hover Effects */
+        .btn-neon {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-neon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.6);
+        }
+        .btn-neon:active {
+            transform: translateY(1px);
+        }
+
+        /* Floating Animation */
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.85; transform: scale(0.98); }
+        }
+        .animate-pulse-subtle {
+            animation: pulse-subtle 3s infinite ease-in-out;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen flex flex-col justify-between items-center overflow-hidden">
+
+    <!-- Top HUD / Header Bar -->
+    <header class="w-full max-w-5xl px-4 py-3 mt-2 z-20">
+        <div class="glass-panel rounded-2xl px-5 py-3 flex justify-between items-center shadow-2xl border border-white/10">
+            <!-- Game Title & Level Info -->
+            <div class="flex items-center space-x-4">
+                <div class="flex flex-col">
+                    <span class="text-xs uppercase tracking-widest text-cyan-400 font-semibold">SEVİYE</span>
+                    <span id="hud-level" class="text-2xl font-extrabold text-white neon-text-cyan">1</span>
+                </div>
+                <div class="h-8 w-[1px] bg-white/15"></div>
+                <div class="flex flex-col">
+                    <span class="text-xs uppercase tracking-widest text-pink-400 font-semibold">SKOR</span>
+                    <span id="hud-score" class="text-2xl font-extrabold text-white">0</span>
+                </div>
+            </div>
+
+            <!-- Goal Counter Bar -->
+            <div class="hidden sm:flex items-center space-x-3 bg-slate-900/60 px-4 py-2 rounded-xl border border-white/5">
+                <i class="fa-solid fa-bullseye text-pink-500 text-lg"></i>
+                <div class="text-sm">
+                    <span class="text-gray-400">Patlatılan:</span>
+                    <span id="hud-progress" class="font-bold text-cyan-300 ml-1">0 / 1</span>
+                </div>
+            </div>
+
+            <!-- Action Controls (Mute, Restart, Info) -->
+            <div class="flex items-center space-x-2">
+                <button id="btn-audio" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-gray-200 transition border border-white/10" title="Ses Aç/Kapat">
+                    <i class="fa-solid fa-volume-high text-lg"></i>
+                </button>
+                <button id="btn-restart" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-gray-200 transition border border-white/10" title="Yeniden Başlat">
+                    <i class="fa-solid fa-rotate-right text-lg"></i>
+                </button>
+                <button id="btn-info" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-gray-200 transition border border-white/10" title="Nasıl Oynanır?">
+                    <i class="fa-solid fa-circle-question text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Game Canvas Container -->
+    <main id="canvas-container" class="relative w-full h-full flex-grow flex justify-center items-center overflow-hidden">
+        <canvas id="gameCanvas" class="absolute inset-0 cursor-crosshair"></canvas>
+
+        <!-- Dynamic Live Feedback Badge (Mobile friendly) -->
+        <div id="live-target-badge" class="absolute top-3 sm:hidden glass-panel px-4 py-1.5 rounded-full text-xs font-semibold text-cyan-300 border border-cyan-500/30">
+            Patlatılan: <span id="hud-progress-mobile">0 / 1</span>
+        </div>
+    </main>
+
+    <!-- OVERLAY 1: Start Screen Modal -->
+    <div id="modal-start" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="glass-card max-w-md w-full p-8 rounded-3xl text-center shadow-2xl border border-cyan-500/30 neon-box-cyan">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-400/30">
+                <i class="fa-solid fa-burst text-4xl text-cyan-400 animate-pulse"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-white tracking-wide mb-2 neon-text-cyan">ZİNCİRLEME REAKSİYON</h1>
+            <p class="text-gray-300 text-sm mb-6 leading-relaxed">
+                Ekranda süzülen renkli halkalara doğru <strong class="text-cyan-400">tek bir defa dokun</strong>. Başlattığın patlama zincirleme büyüyerek tüm topları yok etmeli!
+            </p>
+
+            <div class="bg-slate-900/60 p-4 rounded-2xl mb-6 text-left border border-white/5 space-y-2 text-xs text-gray-300">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-circle-check text-cyan-400"></i>
+                    <span>Her seviyede belirli sayıda topu patlatmalısın.</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-bolt text-pink-400"></i>
+                    <span>Kombo yaptıkça ekstra puanlar kazanırsın!</span>
+                </div>
+            </div>
+
+            <button id="btn-start-game" class="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-lg shadow-lg btn-neon tracking-wider">
+                OYUNA BAŞLA <i class="fa-solid fa-play ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- OVERLAY 2: Level Cleared Modal -->
+    <div id="modal-win" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="glass-card max-w-md w-full p-8 rounded-3xl text-center shadow-2xl border border-emerald-500/30">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-400/30">
+                <i class="fa-solid fa-trophy text-4xl text-emerald-400 animate-bounce"></i>
+            </div>
+            <h2 class="text-3xl font-extrabold text-white mb-1 neon-text-cyan">TEBRİKLER!</h2>
+            <p class="text-emerald-400 font-semibold text-sm mb-6">Seviye Başarıyla Tamamlandı</p>
+
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <div class="bg-slate-900/60 p-3 rounded-2xl border border-white/5">
+                    <div class="text-xs text-gray-400">Patlatılan Top</div>
+                    <div id="win-destroyed-count" class="text-xl font-bold text-cyan-300">0</div>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-2xl border border-white/5">
+                    <div class="text-xs text-gray-400">Toplam Skor</div>
+                    <div id="win-total-score" class="text-xl font-bold text-pink-400">0</div>
+                </div>
+            </div>
+
+            <button id="btn-next-level" class="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-lg shadow-lg btn-neon tracking-wider">
+                SONRAKİ SEVİYE <i class="fa-solid fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- OVERLAY 3: Game Over / Level Failed Modal -->
+    <div id="modal-lose" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="glass-card max-w-md w-full p-8 rounded-3xl text-center shadow-2xl border border-rose-500/30">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-rose-500/10 flex items-center justify-center border border-rose-400/30">
+                <i class="fa-solid fa-heart-crack text-4xl text-rose-400"></i>
+            </div>
+            <h2 class="text-3xl font-extrabold text-white mb-1 neon-text-pink">BAŞARISIZ!</h2>
+            <p class="text-rose-400 font-semibold text-sm mb-6">Hedefe Ulaşılamadı</p>
+
+            <div class="bg-slate-900/60 p-4 rounded-2xl mb-6 border border-white/5 text-center">
+                <div class="text-xs text-gray-400 mb-1">Skorun</div>
+                <div id="lose-score" class="text-2xl font-bold text-white mb-2">0</div>
+                <div class="text-xs text-gray-400">En Yüksek Skor: <span id="lose-high-score" class="text-cyan-400 font-bold">0</span></div>
+            </div>
+
+            <button id="btn-retry" class="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-bold text-lg shadow-lg btn-neon tracking-wider">
+                TEKRAR DENE <i class="fa-solid fa-rotate-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- OVERLAY 4: Rules / Info Modal -->
+    <div id="modal-info" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="glass-card max-w-md w-full p-6 rounded-3xl text-left shadow-2xl border border-white/20">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-white flex items-center">
+                    <i class="fa-solid fa-circle-info text-cyan-400 mr-2"></i> Nasıl Oynanır?
+                </h3>
+                <button id="btn-close-info" class="text-gray-400 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-sm text-gray-300 leading-relaxed mb-6">
+                <p><strong>1. Tek Dokunuş:</strong> Her turda sadece 1 defa ekrana tıklama hakkın vardır.</p>
+                <p><strong>2. Zincir Reaksiyonu:</strong> Oluşturduğun patlama halkasına dokunan toplar patlar ve kendi genişleyen halkalarını oluştururlar.</p>
+                <p><strong>3. Hedef:</strong> Ekranın üst kısmında belirtilen minimum sayıda topu patlatarak sonraki seviyeye geç!</p>
+                <p><strong>4. Kombo Puanları:</strong> Birbirini tetikleyen ardışık patlamalar her adımda katlanarak daha çok puan kazandırır.</p>
+            </div>
+            <button id="btn-ack-info" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold border border-cyan-500/30">
+                Anlaşıldı!
+            </button>
+        </div>
+    </div>
+
+    <script>
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            // Synthesize energetic popping sound with dynamic pitch based on combo chain
+            playExplosion(comboLevel = 1) {
+                if (this.muted) return;
+                this.init();
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                // Pitch increases exponentially with combo chain length
+                const baseFreq = 180;
+                const pitchShift = Math.min(comboLevel * 35, 600);
+                const freq = baseFreq + pitchShift;
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now);
+                osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.2), now + 0.25);
+
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.26);
+
+                // Add a subtle click/pop layer for extra punch
+                const clickOsc = this.ctx.createOscillator();
+                const clickGain = this.ctx.createGain();
+                clickOsc.type = 'triangle';
+                clickOsc.frequency.setValueAtTime(freq * 1.8, now);
+                clickGain.gain.setValueAtTime(0.2, now);
+                clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+                clickOsc.connect(clickGain);
+                clickGain.connect(this.ctx.destination);
+
+                clickOsc.start(now);
+                clickOsc.stop(now + 0.09);
+            }
+
+            // Victory melody when level target is reached
+            playVictory() {
+                if (this.muted) return;
+                this.init();
+
+                const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+                notes.forEach((freq, index) => {
+                    const now = this.ctx.currentTime + index * 0.1;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.32);
+                });
+            }
+
+            // Defeat sound effect
+            playDefeat() {
+                if (this.muted) return;
+                this.init();
+
+                const notes = [300, 260, 220, 180];
+                notes.forEach((freq, index) => {
+                    const now = this.ctx.currentTime + index * 0.12;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.22);
+                });
+            }
+        }
+
+        const audio = new SoundEngine();
+
+        // Colors palette for glowing neon balls
+        const NEON_COLORS = [
+            '#06b6d4', // Cyan
+            '#ec4899', // Pink
+            '#10b981', // Emerald
+            '#a855f7', // Purple
+            '#f59e0b', // Amber
+            '#3b82f6', // Blue
+            '#f43f5e'  // Rose
+        ];
+
+        class Ball {
+            constructor(x, y, vx, vy, radius, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.radius = radius;
+                this.color = color;
+                
+                // State: 'floating', 'exploding', 'dead'
+                this.state = 'floating';
+
+                // Explosion specific attributes
+                this.explosionRadius = 0;
+                this.maxExplosionRadius = 55;
+                this.growthSpeed = 1.8;
+                this.holdDuration = 50; // frames to hold at max size
+                this.holdTimer = 0;
+                this.shrinkSpeed = 1.2;
+                this.alpha = 1;
+            }
+
+            update(width, height) {
+                if (this.state === 'floating') {
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Bounce off Canvas boundaries
+                    if (this.x - this.radius <= 0 || this.x + this.radius >= width) {
+                        this.vx *= -1;
+                        this.x = Math.max(this.radius, Math.min(width - this.radius, this.x));
+                    }
+                    if (this.y - this.radius <= 0 || this.y + this.radius >= height) {
+                        this.vy *= -1;
+                        this.y = Math.max(this.radius, Math.min(height - this.radius, this.y));
+                    }
+                } else if (this.state === 'exploding') {
+                    // Handle expansion, holding, and shrinking phases
+                    if (this.explosionRadius < this.maxExplosionRadius && this.holdTimer === 0) {
+                        this.explosionRadius += this.growthSpeed;
+                    } else if (this.explosionRadius >= this.maxExplosionRadius && this.holdTimer < this.holdDuration) {
+                        this.holdTimer++;
+                    } else {
+                        this.explosionRadius -= this.shrinkSpeed;
+                        this.alpha = Math.max(0, this.explosionRadius / this.maxExplosionRadius);
+                        if (this.explosionRadius <= 0) {
+                            this.state = 'dead';
+                        }
+                    }
+                }
+            }
+
+            draw(ctx) {
+                if (this.state === 'dead') return;
+
+                ctx.save();
+                if (this.state === 'floating') {
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = this.color;
+
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                    ctx.closePath();
+                } else if (this.state === 'exploding') {
+                    ctx.globalAlpha = this.alpha;
+                    
+                    // Outer glowing explosion aura
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = this.color;
+
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, Math.max(0, this.explosionRadius), 0, Math.PI * 2);
+                    ctx.fillStyle = this.color + '44'; // Translucent fill
+                    ctx.fill();
+                    ctx.lineWidth = 2.5;
+                    ctx.strokeStyle = this.color;
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+                ctx.restore();
+            }
+
+            triggerExplosion() {
+                if (this.state === 'floating') {
+                    this.state = 'exploding';
+                    this.vx = 0;
+                    this.vy = 0;
+                }
+            }
+        }
+
+        // Debris particles emitted during explosions
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 3 + 1;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.color = color;
+                this.radius = Math.random() * 2.5 + 1;
+                this.alpha = 1;
+                this.decay = Math.random() * 0.02 + 0.015;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+            }
+
+            draw(ctx) {
+                if (this.alpha <= 0) return;
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Floating dynamic score popups (+100, +200 x2 Combo!)
+        class FloatingText {
+            constructor(x, y, text, color) {
+                this.x = x;
+                this.y = y;
+                this.text = text;
+                this.color = color;
+                this.alpha = 1;
+                this.vy = -1.2;
+            }
+
+            update() {
+                this.y += this.vy;
+                this.alpha -= 0.02;
+            }
+
+            draw(ctx) {
+                if (this.alpha <= 0) return;
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.font = 'bold 16px Outfit, sans-serif';
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = this.color;
+                ctx.textAlign = 'center';
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        class ChainReactionGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+
+                this.balls = [];
+                this.particles = [];
+                this.floatingTexts = [];
+
+                this.level = 1;
+                this.score = 0;
+                this.highScore = parseInt(localStorage.getItem('cr_high_score') || '0', 10);
+                
+                this.targetCount = 1;
+                this.totalBalls = 5;
+                this.destroyedCount = 0;
+                this.comboCount = 0;
+
+                // Game phases: 'START', 'WAITING_CLICK', 'REACTION', 'ROUND_END'
+                this.phase = 'START';
+                this.playerClicked = false;
+
+                this.setupCanvas();
+                this.bindEvents();
+                this.updateHUD();
+            }
+
+            setupCanvas() {
+                const container = document.getElementById('canvas-container');
+                this.canvas.width = container.clientWidth;
+                this.canvas.height = container.clientHeight;
+            }
+
+            // Generates scale for difficulty per level
+            getLevelParams(level) {
+                // Level progression formula
+                const ballCounts = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+                const targetCounts = [1, 3, 7, 12, 18, 22, 28, 34, 40, 45];
+
+                let balls, target;
+                if (level <= 10) {
+                    balls = ballCounts[level - 1];
+                    target = targetCounts[level - 1];
+                } else {
+                    balls = 55;
+                    target = Math.min(50, 45 + (level - 10));
+                }
+
+                return { balls, target };
+            }
+
+            startLevel(levelNum) {
+                this.level = levelNum;
+                const params = this.getLevelParams(this.level);
+                this.totalBalls = params.balls;
+                this.targetCount = params.target;
+
+                this.destroyedCount = 0;
+                this.comboCount = 0;
+                this.playerClicked = false;
+                this.phase = 'WAITING_CLICK';
+
+                this.particles = [];
+                this.floatingTexts = [];
+                this.balls = [];
+
+                // Spawn floating balls
+                for (let i = 0; i < this.totalBalls; i++) {
+                    const radius = 10;
+                    const x = Math.random() * (this.canvas.width - radius * 4) + radius * 2;
+                    const y = Math.random() * (this.canvas.height - radius * 4) + radius * 2;
+                    const speed = 1.2 + Math.random() * 1.2;
+                    const angle = Math.random() * Math.PI * 2;
+                    const vx = Math.cos(angle) * speed;
+                    const vy = Math.sin(angle) * speed;
+                    const color = NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)];
+
+                    this.balls.push(new Ball(x, y, vx, vy, radius, color));
+                }
+
+                this.updateHUD();
+            }
+
+            handleCanvasClick(x, y) {
+                audio.init();
+
+                if (this.phase !== 'WAITING_CLICK') return;
+
+                this.playerClicked = true;
+                this.phase = 'REACTION';
+
+                // Spawn player's initial explosion at clicked location
+                const playerBall = new Ball(x, y, 0, 0, 0, '#ffffff');
+                playerBall.triggerExplosion();
+                playerBall.maxExplosionRadius = 60;
+                this.balls.push(playerBall);
+
+                // Play soft trigger audio
+                audio.playExplosion(1);
+            }
+
+            checkCollisions() {
+                const activeExplosions = this.balls.filter(b => b.state === 'exploding');
+
+                this.balls.forEach(ball => {
+                    if (ball.state === 'floating') {
+                        for (let exp of activeExplosions) {
+                            const dist = Math.hypot(ball.x - exp.x, ball.y - exp.y);
+                            if (dist <= exp.explosionRadius + ball.radius) {
+                                // Trigger explosion chain!
+                                ball.triggerExplosion();
+                                this.destroyedCount++;
+                                this.comboCount++;
+
+                                // Score calculation: Base score + Combo multiplier
+                                const pts = 100 * this.comboCount;
+                                this.score += pts;
+
+                                // Audio feedback with dynamic pitch based on current combo chain
+                                audio.playExplosion(this.comboCount);
+
+                                // Particle burst FX
+                                for (let p = 0; p < 14; p++) {
+                                    this.particles.push(new Particle(ball.x, ball.y, ball.color));
+                                }
+
+                                // Score popup text
+                                const comboLabel = this.comboCount > 1 ? ` (x${this.comboCount})` : '';
+                                this.floatingTexts.push(new FloatingText(ball.x, ball.y - 10, `+${pts}${comboLabel}`, ball.color));
+
+                                this.updateHUD();
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+
+            update() {
+                // Update balls
+                this.balls.forEach(ball => ball.update(this.canvas.width, this.canvas.height));
+
+                if (this.phase === 'REACTION') {
+                    this.checkCollisions();
+
+                    // Check if round finished (all active explosions subsided)
+                    const explodingCount = this.balls.filter(b => b.state === 'exploding').length;
+                    if (explodingCount === 0) {
+                        this.phase = 'ROUND_END';
+                        setTimeout(() => this.evaluateRound(), 600);
+                    }
+                }
+
+                // Update particles
+                this.particles.forEach(p => p.update());
+                this.particles = this.particles.filter(p => p.alpha > 0);
+
+                // Update floating texts
+                this.floatingTexts.forEach(ft => ft.update());
+                this.floatingTexts = this.floatingTexts.filter(ft => ft.alpha > 0);
+            }
+
+            draw() {
+                // Clear Canvas with subtle dark gradient fade
+                this.ctx.fillStyle = '#070913';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw background grid lines for sleek sci-fi arcade vibe
+                this.drawGrid();
+
+                // Draw Balls / Explosions
+                this.balls.forEach(ball => ball.draw(this.ctx));
+
+                // Draw Particles
+                this.particles.forEach(p => p.draw(this.ctx));
+
+                // Draw Score Popups
+                this.floatingTexts.forEach(ft => ft.draw(this.ctx));
+            }
+
+            drawGrid() {
+                this.ctx.save();
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+                this.ctx.lineWidth = 1;
+                const gridSize = 40;
+                for (let x = 0; x < this.canvas.width; x += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height);
+                    this.ctx.stroke();
+                }
+                for (let y = 0; y < this.canvas.height; y += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
+                }
+                this.ctx.restore();
+            }
+
+            evaluateRound() {
+                if (this.destroyedCount >= this.targetCount) {
+                    // LEVEL CLEARED!
+                    audio.playVictory();
+                    if (this.score > this.highScore) {
+                        this.highScore = this.score;
+                        localStorage.setItem('cr_high_score', this.highScore.toString());
+                    }
+
+                    document.getElementById('win-destroyed-count').innerText = `${this.destroyedCount} / ${this.totalBalls}`;
+                    document.getElementById('win-total-score').innerText = this.score;
+                    document.getElementById('modal-win').classList.remove('hidden');
+                } else {
+                    // GAME OVER / RETRY
+                    audio.playDefeat();
+                    if (this.score > this.highScore) {
+                        this.highScore = this.score;
+                        localStorage.setItem('cr_high_score', this.highScore.toString());
+                    }
+
+                    document.getElementById('lose-score').innerText = this.score;
+                    document.getElementById('lose-high-score').innerText = this.highScore;
+                    document.getElementById('modal-lose').classList.remove('hidden');
+                }
+            }
+
+            updateHUD() {
+                document.getElementById('hud-level').innerText = this.level;
+                document.getElementById('hud-score').innerText = this.score;
+                
+                const progressStr = `${this.destroyedCount} / ${this.targetCount}`;
+                document.getElementById('hud-progress').innerText = progressStr;
+                document.getElementById('hud-progress-mobile').innerText = progressStr;
+            }
+
+            bindEvents() {
+                window.addEventListener('resize', () => this.setupCanvas());
+
+                // Click & Touch events for canvas
+                const triggerAction = (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                    const x = clientX - rect.left;
+                    const y = clientY - rect.top;
+                    this.handleCanvasClick(x, y);
+                };
+
+                this.canvas.addEventListener('click', triggerAction);
+                this.canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    triggerAction(e);
+                }, { passive: false });
+
+                // UI Button bindings
+                document.getElementById('btn-start-game').addEventListener('click', () => {
+                    document.getElementById('modal-start').classList.add('hidden');
+                    this.startLevel(1);
+                });
+
+                document.getElementById('btn-next-level').addEventListener('click', () => {
+                    document.getElementById('modal-win').classList.add('hidden');
+                    this.startLevel(this.level + 1);
+                });
+
+                document.getElementById('btn-retry').addEventListener('click', () => {
+                    document.getElementById('modal-lose').classList.add('hidden');
+                    this.score = 0;
+                    this.startLevel(this.level);
+                });
+
+                document.getElementById('btn-restart').addEventListener('click', () => {
+                    document.getElementById('modal-win').classList.add('hidden');
+                    document.getElementById('modal-lose').classList.add('hidden');
+                    this.score = 0;
+                    this.startLevel(1);
+                });
+
+                // Sound toggle button
+                const btnAudio = document.getElementById('btn-audio');
+                btnAudio.addEventListener('click', () => {
+                    audio.muted = !audio.muted;
+                    btnAudio.innerHTML = audio.muted ? 
+                        '<i class="fa-solid fa-volume-xmark text-lg text-rose-400"></i>' : 
+                        '<i class="fa-solid fa-volume-high text-lg"></i>';
+                });
+
+                // Info Modal toggles
+                const modalInfo = document.getElementById('modal-info');
+                document.getElementById('btn-info').addEventListener('click', () => modalInfo.classList.remove('hidden'));
+                document.getElementById('btn-close-info').addEventListener('click', () => modalInfo.classList.add('hidden'));
+                document.getElementById('btn-ack-info').addEventListener('click', () => modalInfo.classList.add('hidden'));
+            }
+        }
+
+        window.onload = () => {
+            const game = new ChainReactionGame();
+
+            function gameLoop() {
+                game.update();
+                game.draw();
+                requestAnimationFrame(gameLoop);
+            }
+
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
